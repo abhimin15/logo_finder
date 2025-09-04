@@ -15,7 +15,7 @@ app.get("/getlogo", (req, res) => {
   try {
     const analysesWithLogos = imageAnalysisStore.getAnalysesWithLogos();
     
-    if (analysesWithLogos.length === 0) {
+    if (Object.keys(analysesWithLogos).length === 0) {
       // Return sample data if no analyses exist
       const sampleData = [{
         id: "sample-1",

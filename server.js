@@ -2,27 +2,70 @@ const express = require("express");
 const cors = require("cors");
 const multer = require("multer");
 const vision = require("@google-cloud/vision");
+const imageAnalysisStore = require("./dataModel");
+
 const app = express();
 require("dotenv").config();
 const PORT = process.env.PORT;
 app.use(cors());
 app.use(express.json());
 
+// Get stored logo analyses
 app.get("/getlogo", (req, res) => {
-    const data = [{
+  try {
+    const analysesWithLogos = imageAnalysisStore.getAnalysesWithLogos();
+    
+    if (analysesWithLogos.length === 0) {
+      // Return sample data if no analyses exist
+      const sampleData = [{
+        id: "sample-1",
         name: "logo1",
-        size: Math.random() * 100,
-        location: "Shirt"
-    },{
+        confidence: 0.85,
+        location: "Shirt",
+        timestamp: new Date().toISOString()
+      }, {
+        id: "sample-2", 
         name: "logo2",
-        size: Math.random() * 100,
-        location: "Board"
-    },{
-        name: "logo3",
-        size: Math.random() * 100,
-        location: "Ball"
-    }]
-  res.json(data);
+        confidence: 0.92,
+        location: "Board",
+        timestamp: new Date().toISOString()
+      }, {
+        id: "sample-3",
+        name: "logo3", 
+        confidence: 0.78,
+        location: "Ball",
+        timestamp: new Date().toISOString()
+      }];
+      
+      return res.json({
+        success: true,
+        data: sampleData,
+        message: "Sample data (no analyses stored yet)"
+      });
+    }
+
+    // Flatten logos from all analyses
+    const allLogos = 
+      analysesWithLogos.logos.map(logo => ({
+        id: `${analysesWithLogos.id}-${logo.name}`,
+        name: logo.name,
+        confidence: logo.confidence,
+        location: logo.location,
+        timestamp: analysesWithLogos.timestamp,
+        imageName: analysesWithLogos.imageInfo.name
+      }));
+
+    res.json({
+      success: true,
+      data: allLogos,
+      stats: imageAnalysisStore.getStats()
+    });
+  } catch (error) {
+    res.status(500).json({
+      success: false,
+      error: "Failed to retrieve logo data"
+    });
+  }
 });
 
 // Google Vision client (uses GOOGLE_APPLICATION_CREDENTIALS if set)
@@ -52,37 +95,44 @@ app.post("/upload-image", upload.single("image"), async (req, res) => {
       features: [
         { type: "TEXT_DETECTION" },
         { type: "LOGO_DETECTION" },
-        { type: "LABEL_DETECTION" },
-        { type: "OBJECT_LOCALIZATION" },
-        { type: "LANDMARK_DETECTION" },
-        { type: "WEB_DETECTION" },
-        { type: "IMAGE_PROPERTIES" },
-        { type: "SAFE_SEARCH_DETECTION" }
+        { type: "LABEL_DETECTION" }
       ]
     };
 
     const [result] = await client.annotateImage(request);
     console.log(result);
 
+    // Prepare analysis data
+    const analysisData = {
+      text: {
+        fullText: (result.fullTextAnnotation && result.fullTextAnnotation.text) || (result.textAnnotations && result.textAnnotations[0] && result.textAnnotations[0].description) || "",
+        blocks: result.fullTextAnnotation ? result.fullTextAnnotation.pages || [] : []
+      },
+      logos: (result.logoAnnotations || []).map(l => ({ description: l.description, score: l.score, boundingPoly: l.boundingPoly })),
+      labels: (result.labelAnnotations || []).map(l => ({ description: l.description, score: l.score, topicality: l.topicality }))
+    };
+
+    // Store the analysis result
+    const imageInfo = {
+      name: req.file.originalname,
+      mimetype: req.file.mimetype,
+      size: req.file.size
+    };
+
+    const storedAnalysis = imageAnalysisStore.addAnalysis(imageInfo, analysisData);
+
     const response = {
       success: true,
       data: {
-        imageInfo: {
-          name: req.file.originalname,
-          mimetype: req.file.mimetype,
-          size: req.file.size
-        },
-        text: {
-          fullText: (result.fullTextAnnotation && result.fullTextAnnotation.text) || (result.textAnnotations && result.textAnnotations[0] && result.textAnnotations[0].description) || "",
-          blocks: result.fullTextAnnotation ? result.fullTextAnnotation.pages || [] : []
-        },
-        logos: (result.logoAnnotations || []).map(l => ({ description: l.description, score: l.score, boundingPoly: l.boundingPoly })),
-        labels: (result.labelAnnotations || []).map(l => ({ description: l.description, score: l.score, topicality: l.topicality })),
-        objects: (result.localizedObjectAnnotations || []).map(o => ({ name: o.name, score: o.score, boundingPoly: o.boundingPoly })),
-        landmarks: (result.landmarkAnnotations || []).map(l => ({ description: l.description, score: l.score, locations: l.locations })),
-        webDetection: result.webDetection || {},
-        imageProperties: result.imagePropertiesAnnotation || {},
-        safeSearch: result.safeSearchAnnotation || {}
+        analysisId: storedAnalysis.id,
+        timestamp: storedAnalysis.timestamp,
+        imageInfo: storedAnalysis.imageInfo,
+        analysis: storedAnalysis.analysis,
+        summary: {
+          textFound: analysisData.text.fullText.length > 0,
+          logoCount: analysisData.logos.length,
+          labelCount: analysisData.labels.length
+        }
       }
     };
 

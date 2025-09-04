@@ -1,11 +1,13 @@
 # Logo Finder API
 
-A Node.js Express server that uses Google Vision API to extract text and logos from uploaded images.
+A Node.js Express server that uses Google Vision API to extract comprehensive data from uploaded images including text, logos, labels, objects, landmarks, and more.
 
 ## Features
 
 - **Text Detection**: Extracts all text content from images using OCR
 - **Logo Detection**: Identifies and locates logos in images
+- **Label Detection**: Recognizes objects, places, and activities
+- **Data Storage**: Stores analysis results for retrieval
 - **File Upload**: Handles image uploads with validation
 - **Error Handling**: Comprehensive error handling for various scenarios
 
@@ -26,22 +28,53 @@ A Node.js Express server that uses Google Vision API to extract text and logos f
 npm install
 ```
 
-2. Start the server:
+2. Create a `.env` file in the project root:
+```bash
+PORT=8000
+GOOGLE_APPLICATION_CREDENTIALS=path/to/your/google-vision-key.json
+```
+
+3. Start the server:
 ```bash
 node server.js
 ```
 
-The server will run on `http://localhost:5000`
+The server will run on `http://localhost:8000`
 
 ## API Usage
 
-### POST /analyze-image
+### GET /getlogo
 
-Upload an image to extract text and logos.
+Get stored logo data from analyzed images. Returns real logo data if available, otherwise sample data.
+
+**Request:**
+- Method: `GET`
+- URL: `http://localhost:8000/getlogo`
+
+**Response:**
+```json
+{
+  "success": true,
+  "data": [
+    {
+      "id": "1-Nike",
+      "name": "Nike",
+      "confidence": 0.89,
+      "location": "Detected",
+      "timestamp": "2024-01-15T10:30:00.000Z",
+      "imageName": "sports-shoe.jpg"
+    }
+  ]
+}
+```
+
+### POST /upload-image
+
+Upload an image to extract comprehensive data using Google Vision API.
 
 **Request:**
 - Method: `POST`
-- URL: `http://localhost:5000/analyze-image`
+- URL: `http://localhost:8000/upload-image`
 - Content-Type: `multipart/form-data`
 - Body: Form data with field name `image` containing the image file
 
@@ -49,7 +82,7 @@ Upload an image to extract text and logos.
 ```bash
 curl -X POST \
   -F "image=@/path/to/your/image.jpg" \
-  http://localhost:5000/analyze-image
+  http://localhost:8000/upload-image
 ```
 
 **Example using JavaScript (fetch):**
@@ -57,7 +90,7 @@ curl -X POST \
 const formData = new FormData();
 formData.append('image', imageFile);
 
-fetch('http://localhost:5000/analyze-image', {
+fetch('http://localhost:8000/upload-image', {
   method: 'POST',
   body: formData
 })
@@ -70,32 +103,50 @@ fetch('http://localhost:5000/analyze-image', {
 {
   "success": true,
   "data": {
-    "text": {
-      "content": "Extracted text from the image",
-      "confidence": 0.95
-    },
-    "logos": [
-      {
-        "description": "Logo description",
-        "score": 0.89,
-        "boundingPoly": {
-          "vertices": [
-            {"x": 10, "y": 20},
-            {"x": 100, "y": 20},
-            {"x": 100, "y": 80},
-            {"x": 10, "y": 80}
-          ]
-        }
-      }
-    ],
+    "analysisId": 1,
+    "timestamp": "2024-01-15T10:30:00.000Z",
     "imageInfo": {
-      "originalName": "image.jpg",
+      "name": "image.jpg",
       "mimetype": "image/jpeg",
       "size": 123456
+    },
+    "analysis": {
+      "text": {
+        "fullText": "Extracted text from the image",
+        "blocks": []
+      },
+      "logos": [
+        {
+          "description": "Logo description",
+          "score": 0.89,
+          "boundingPoly": {
+            "vertices": [
+              {"x": 10, "y": 20},
+              {"x": 100, "y": 20},
+              {"x": 100, "y": 80},
+              {"x": 10, "y": 80}
+            ]
+          }
+        }
+      ],
+      "labels": [
+        {
+          "description": "Object label",
+          "score": 0.95,
+          "topicality": 0.92
+        }
+      ]
+    },
+    "summary": {
+      "textFound": true,
+      "logoCount": 2,
+      "labelCount": 5
     }
   }
 }
 ```
+
+
 
 ## Supported Image Formats
 
@@ -108,8 +159,12 @@ fetch('http://localhost:5000/analyze-image', {
 
 ## File Size Limits
 
-- Maximum file size: 10MB
+- Maximum file size: 5MB
 - Google Vision API limit: 20MB
+
+## Data Storage
+
+The application stores analysis results in memory. Each upload replaces the previous analysis, maintaining only the most recent result.
 
 ## Error Responses
 
@@ -120,6 +175,13 @@ The API returns appropriate error messages for various scenarios:
 
 ## Environment Variables
 
-- `PORT`: Server port (default: 5000)
+Create a `.env` file in the project root with the following variables:
+
+- `PORT`: Server port (default: 8000)
 - `GOOGLE_APPLICATION_CREDENTIALS`: Path to Google Cloud service account key file
-- `NODE_ENV`: Set to 'development' for detailed error messages
+
+Example `.env` file:
+```
+PORT=8000
+GOOGLE_APPLICATION_CREDENTIALS=/path/to/your/google-vision-key.json
+```

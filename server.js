@@ -14,7 +14,6 @@ app.use(express.json());
 app.get("/getlogo", (req, res) => {
   try {
     const analysesWithLogos = imageAnalysisStore.getAnalysesWithLogos();
-    
     if (Object.keys(analysesWithLogos).length === 0) {
       // Return sample data if no analyses exist
       const sampleData = [{
@@ -44,9 +43,8 @@ app.get("/getlogo", (req, res) => {
       });
     }
 
-    // Flatten logos from all analyses
     const allLogos = 
-      analysesWithLogos.logos.map(logo => ({
+      analysesWithLogos.analysis.logos.map(logo => ({
         id: `${analysesWithLogos.id}-${logo.name}`,
         name: logo.name,
         confidence: logo.confidence,
@@ -57,8 +55,7 @@ app.get("/getlogo", (req, res) => {
 
     res.json({
       success: true,
-      data: allLogos,
-      stats: imageAnalysisStore.getStats()
+      data: allLogos
     });
   } catch (error) {
     res.status(500).json({

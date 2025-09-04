@@ -28,16 +28,7 @@ class ImageAnalysisStore {
 
   // Get analyses with logos
   getAnalysesWithLogos() {
-    return {
-        id: this.analyses.id,
-        timestamp: this.analyses.timestamp,
-        imageInfo: this.analyses.imageInfo,
-        logos: this.analyses.logos.map(logo => ({
-          name: logo.description,
-          confidence: logo.score,
-          location: logo.boundingPoly ? 'Detected' : 'Unknown'
-        }))
-      };
+    return this.analyses;
   }
 
   // Clear all analyses
